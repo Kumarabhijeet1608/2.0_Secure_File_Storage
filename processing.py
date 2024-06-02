@@ -14,10 +14,11 @@ def split(path):
 
     # print(f"Total size of the file -> {size}")
     limit = (size / 4)
+
     # print(f"Limit of each file -> {limit}")
     buffer = math.ceil(limit)
+
     # print(f"Buffer of each file -> {buffer}")
-    
     k = 0
 
     for i in range(0, 4): 
