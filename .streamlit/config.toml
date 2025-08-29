@@ -1,0 +1,46 @@
+[server]
+# Server configuration
+port = 8501
+address = "0.0.0.0"
+maxUploadSize = 200
+enableXsrfProtection = true
+enableCORS = false
+
+[server.enableCORS]
+# CORS settings for security
+allowedOrigins = ["https://yourdomain.com"]
+
+[server.enableXsrfProtection]
+# XSRF protection settings
+cookieName = "_xsrf"
+headerName = "X-XSRF-TOKEN"
+
+[browser]
+# Browser settings
+gatherUsageStats = false
+serverAddress = "localhost"
+serverPort = 8501
+
+[theme]
+# Custom theme for professional appearance
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
+font = "sans serif"
+
+[client]
+# Client-side settings
+showErrorDetails = false
+toolbarMode = "minimal"
+
+[runner]
+# Runner settings
+magicEnabled = false
+installTracer = false
+fixMatplotlib = true
+
+[logger]
+# Logging configuration
+level = "info"
+messageFormat = "%(asctime)s %(message)s"
