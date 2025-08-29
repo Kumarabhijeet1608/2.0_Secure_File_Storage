@@ -1,4 +1,4 @@
-# 🔒 Secure File Storage v2.0
+# Secure File Storage v2.0
 
 **Enterprise-grade encryption with multi-layer security, file splitting, and cyber attack prevention**
 
@@ -7,39 +7,39 @@
 [![Security](https://img.shields.io/badge/Security-FIPS%20140--2%20Compliant-green.svg)](https://csrc.nist.gov/projects/fips-140)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-## 🎯 Overview
+## Overview
 
 Secure File Storage v2.0 is a production-ready, web-based file encryption system that implements your original concept of **file splitting before encryption** for maximum security. Even if someone intercepts a few encrypted parts, they cannot reconstruct the complete file.
 
-## ✨ Key Features
+## Key Features
 
-### 🔐 **Multi-Layer Encryption**
+### Multi-Layer Encryption
 - **AES-256-GCM**: Authenticated encryption with 256-bit keys
 - **ChaCha20-Poly1305**: High-performance stream cipher
 - **Fernet**: Symmetric encryption with built-in authentication
 - **MultiFernet**: Multiple encryption keys for enhanced security
 - **RSA-4096**: Asymmetric encryption for key exchange
 
-### ✂️ **File Splitting Security (Your Original Concept!)**
+### File Splitting Security (Your Original Concept!)
 - **Intelligent Splitting**: Automatically determines optimal number of parts
 - **Individual Encryption**: Each part encrypted separately
 - **Hash Verification**: SHA-256 integrity checks for all parts
 - **Partial Interception Protection**: Even if some parts are compromised
 
-### 🛡️ **Advanced Security Features**
+### Advanced Security Features
 - **Input Validation**: Regex-based protection against SQL injection, XSS, path traversal
 - **Rate Limiting**: Prevents brute force attacks
 - **Two-Factor Authentication**: TOTP-based 2FA support
 - **Account Lockout**: Protection against multiple failed login attempts
 - **Session Management**: Secure session handling with timeouts
 
-### 🎨 **Professional User Interface**
+### Professional User Interface
 - **Modern Design**: Beautiful, responsive Streamlit interface
 - **Real-time Feedback**: Progress tracking and status updates
 - **File Management**: Upload, encrypt, decrypt, and download files
 - **Dashboard**: Comprehensive overview of system status
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.11 or higher
@@ -66,7 +66,7 @@ python run.py
 4. **Open your browser**
 Navigate to `http://localhost:8501`
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 2.0_Secure_File_Storage/
@@ -83,20 +83,20 @@ Navigate to `http://localhost:8501`
 └── README.md                 # This file
 ```
 
-## 🔒 Encryption Methods
+## Encryption Methods
 
-### 1. **Split + Encrypt (Maximum Security)**
+### 1. Split + Encrypt (Maximum Security)
 - Splits file into multiple parts
 - Each part encrypted individually with multi-layer encryption
 - **Your original concept implemented!**
 - Maximum security against partial interception
 
-### 2. **Multi-Layer Encryption**
+### 2. Multi-Layer Encryption
 - 4-layer encryption: AES → ChaCha20 → Fernet → MultiFernet
 - Each layer adds additional security
 - High performance with maximum protection
 
-### 3. **Hybrid Encryption**
+### 3. Hybrid Encryption
 - RSA-4096 for key exchange
 - AES-256-GCM for data encryption
 - Combines asymmetric and symmetric encryption

@@ -299,8 +299,9 @@ class EnhancedEncryption:
             key_data = {}
             for key_name, key_value in keys.items():
                 if key_name.endswith('_key') or key_name.endswith('_private'):
-                    # Hash the key for storage (don't store actual keys)
-                    key_data[key_name] = hashlib.sha256(key_value).hexdigest()
+                    # Store the actual key as base64 for decryption
+                    # In production, these should be stored in a secure key management system
+                    key_data[key_name] = base64.b64encode(key_value).decode()
                 else:
                     # Store nonces and other data as base64
                     key_data[key_name] = base64.b64encode(key_value).decode()

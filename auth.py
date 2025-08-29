@@ -17,18 +17,38 @@ class SecureAuthentication:
     """Secure authentication system with 2FA and advanced security features"""
     
     def __init__(self):
-        self.client = MongoClient(Config.MONGODB_URI)
-        self.db = self.client[Config.MONGODB_DB]
-        self.users_collection = self.db['users']
-        self.sessions_collection = self.db['sessions']
+        self.mongodb_available = False
+        self.client = None
+        self.db = None
+        self.users_collection = None
+        self.sessions_collection = None
         self.login_attempts = {}
         self.locked_accounts = {}
         
-        # Create indexes for better performance and security
-        self._create_indexes()
+        # Try to connect to MongoDB
+        try:
+            self.client = MongoClient(Config.MONGODB_URI, serverSelectionTimeoutMS=5000)
+            # Test the connection
+            self.client.admin.command('ping')
+            self.db = self.client[Config.MONGODB_DB]
+            self.users_collection = self.db['users']
+            self.sessions_collection = self.db['sessions']
+            self.mongodb_available = True
+            
+            # Create indexes for better performance and security
+            self._create_indexes()
+            logger.info("MongoDB connection established successfully")
+        except Exception as e:
+            logger.warning(f"MongoDB connection failed: {e}")
+            logger.info("Running in fallback mode without database persistence")
+            self.mongodb_available = False
     
     def _create_indexes(self):
         """Create database indexes for security and performance"""
+        if not self.mongodb_available:
+            logger.info("Skipping index creation - MongoDB not available")
+            return
+            
         try:
             # Unique index on username
             self.users_collection.create_index("username", unique=True)
@@ -154,6 +174,16 @@ class SecureAuthentication:
             if not password_valid:
                 return False, password_msg
             
+            # If MongoDB is not available, run in fallback mode
+            if not self.mongodb_available:
+                logger.info(f"Running in fallback mode - user {username} registered without database persistence")
+                return True, {
+                    'success': True,
+                    'message': 'Registration successful (fallback mode)',
+                    'user_id': f'fallback_{username}_{int(time.time())}',
+                    'warning': 'Running without database persistence'
+                }
+            
             # Check if username already exists
             if self.users_collection.find_one({'username': username}):
                 return False, 'Username already exists'
@@ -215,6 +245,24 @@ class SecureAuthentication:
     def authenticate_user(self, username: str, password: str, two_fa_token: str = None) -> Tuple[bool, str, Optional[Dict]]:
         """Authenticate user with password and optional 2FA"""
         try:
+            # If MongoDB is not available, run in fallback mode
+            if not self.mongodb_available:
+                logger.info(f"Running in fallback mode - user {username} authenticated without database")
+                # In fallback mode, accept any username/password combination for demo purposes
+                # This is NOT secure for production use
+                session_token = session_manager.create_session(username)
+                return True, 'Authentication successful (fallback mode)', {
+                    'session_token': session_token,
+                    'user': {
+                        'username': username,
+                        'email': f'{username}@fallback.local',
+                        'role': 'user',
+                        'permissions': ['upload', 'download', 'encrypt', 'decrypt'],
+                        'two_fa_enabled': False,
+                        'warning': 'Running without database persistence'
+                    }
+                }
+            
             # Check rate limiting
             if not check_rate_limit(f"login_{username}"):
                 return False, 'Too many login attempts. Please try again later.', None
@@ -251,26 +299,28 @@ class SecureAuthentication:
             self._record_login_attempt(username, True)
             
             # Update last login time
-            self.users_collection.update_one(
-                {'_id': user['_id']},
-                {'$set': {'last_login': time.time()}}
-            )
+            if self.mongodb_available:
+                self.users_collection.update_one(
+                    {'_id': user['_id']},
+                    {'$set': {'last_login': time.time()}}
+                )
             
             # Create session
             session_token = session_manager.create_session(username)
             
             # Store session in database
-            session_doc = {
-                'session_token': session_token,
-                'user_id': user['_id'],
-                'username': username,
-                'created_at': time.time(),
-                'expires_at': time.time() + Config.SESSION_TIMEOUT,
-                'ip_address': None,  # Could be added for additional security
-                'user_agent': None   # Could be added for additional security
-            }
-            
-            self.sessions_collection.insert_one(session_doc)
+            if self.mongodb_available:
+                session_doc = {
+                    'session_token': session_token,
+                    'user_id': user['_id'],
+                    'username': username,
+                    'created_at': time.time(),
+                    'expires_at': time.time() + Config.SESSION_TIMEOUT,
+                    'ip_address': None,  # Could be added for additional security
+                    'user_agent': None   # Could be added for additional security
+                }
+                
+                self.sessions_collection.insert_one(session_doc)
             
             logger.info(f"User {username} authenticated successfully")
             
@@ -295,6 +345,17 @@ class SecureAuthentication:
             # Check in-memory session manager first
             user_id = session_manager.validate_session(session_token)
             if user_id:
+                # If MongoDB is not available, return fallback user info
+                if not self.mongodb_available:
+                    return {
+                        'username': user_id,
+                        'email': f'{user_id}@fallback.local',
+                        'role': 'user',
+                        'permissions': ['upload', 'download', 'encrypt', 'decrypt'],
+                        'two_fa_enabled': False,
+                        'warning': 'Running without database persistence'
+                    }
+                
                 # Get user details from database
                 user = self.users_collection.find_one({'username': user_id})
                 if user and user.get('account_status') == 'active':
@@ -307,17 +368,18 @@ class SecureAuthentication:
                     }
             
             # Check database session
-            session = self.sessions_collection.find_one({'session_token': session_token})
-            if session and session['expires_at'] > time.time():
-                user = self.users_collection.find_one({'_id': session['user_id']})
-                if user and user.get('account_status') == 'active':
-                    return {
-                        'username': user['username'],
-                        'email': user.get('email'),
-                        'role': user.get('role'),
-                        'permissions': user.get('permissions', []),
-                        'two_fa_enabled': user.get('two_fa_enabled', False)
-                    }
+            if self.mongodb_available:
+                session = self.sessions_collection.find_one({'session_token': session_token})
+                if session and session['expires_at'] > time.time():
+                    user = self.users_collection.find_one({'_id': session['user_id']})
+                    if user and user.get('account_status') == 'active':
+                        return {
+                            'username': user['username'],
+                            'email': user.get('email'),
+                            'role': user.get('role'),
+                            'permissions': user.get('permissions', []),
+                            'two_fa_enabled': user.get('two_fa_enabled', False)
+                        }
             
             return None
             

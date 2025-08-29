@@ -72,8 +72,8 @@ def is_safe_file(filename: str) -> bool:
         bool: True if file is safe, False otherwise
     """
     if not filename:
-        return False
-    
+            return False
+            
     # Define dangerous file extensions
     dangerous_extensions = {
         '.exe', '.bat', '.cmd', '.com', '.scr', '.pif', '.vbs', '.js',
@@ -83,3 +83,4 @@ def is_safe_file(filename: str) -> bool:
     _, extension = os.path.splitext(filename.lower())
     
     return extension not in dangerous_extensions
+    

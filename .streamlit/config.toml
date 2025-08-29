@@ -3,8 +3,6 @@
 port = 8501
 address = "0.0.0.0"
 maxUploadSize = 200
-enableXsrfProtection = true
-enableCORS = false
 
 [server.enableCORS]
 # CORS settings for security

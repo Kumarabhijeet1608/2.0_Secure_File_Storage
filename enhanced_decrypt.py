@@ -346,3 +346,150 @@ enhanced_decryption = EnhancedDecryption()
 def decrypt_file_enhanced(encrypted_file_path: str, key_file_path: str, output_path: str = None) -> Tuple[bytes, Dict[str, Any]]:
     """Enhanced file decryption with multiple algorithm support"""
     return enhanced_decryption.decrypt_file_enhanced(encrypted_file_path, key_file_path, output_path)
+
+def decrypt_split_and_encrypt_file(encrypted_part_paths: List[str], manifest_path: str) -> bytes:
+    """Decrypt a split-and-encrypted file from its parts and manifest"""
+    try:
+        # Load manifest
+        with open(manifest_path, 'r') as f:
+            manifest = json.load(f)
+        
+        # Check if this is our new manifest structure
+        if 'encryption_details' in manifest:
+            # Use the encryption_details from our manifest
+            encryption_details = manifest.get('encryption_details', {})
+            
+            # The manifest only contains key hashes, not the actual keys
+            # We need to load the actual keys from the key file
+            # The key file should be in the same directory as the encrypted parts
+            if not encrypted_part_paths:
+                raise ValueError("No encrypted part paths provided")
+            
+            # Get the directory of the first part to find the key file
+            base_dir = os.path.dirname(encrypted_part_paths[0])
+            original_filename = manifest.get('original_filename', 'unknown')
+            key_file_path = os.path.join(base_dir, f"{original_filename}_keys.json")
+            
+            if not os.path.exists(key_file_path):
+                raise ValueError(f"Key file not found: {key_file_path}")
+            
+            # Load the actual encryption keys
+            with open(key_file_path, 'r') as f:
+                key_data = json.load(f)
+            
+            # Convert base64 encoded keys back to bytes
+            keys = {}
+            for key_name, key_value in key_data.items():
+                if key_name in ['timestamp', 'version']:
+                    keys[key_name] = key_value
+                else:
+                    # Convert base64 back to bytes
+                    keys[key_name] = base64.b64decode(key_value)
+            
+            # Read all encrypted parts
+            encrypted_parts = []
+            for part_path in encrypted_part_paths:
+                with open(part_path, 'rb') as f:
+                    encrypted_parts.append(f.read())
+            
+            # Decrypt each part using the reverse of multi_layer_encrypt
+            decrypted_parts = []
+            for i, encrypted_part in enumerate(encrypted_parts):
+                try:
+                    # Layer 4: MultiFernet decryption
+                    multifernet_cipher = MultiFernet([
+                        Fernet(keys['multifernet_key1']),
+                        Fernet(keys['multifernet_key2'])
+                    ])
+                    fernet_decrypted = multifernet_cipher.decrypt(encrypted_part)
+                    
+                    # Layer 3: Fernet decryption
+                    fernet_cipher = Fernet(keys['fernet_key'])
+                    fernet_decrypted = fernet_cipher.decrypt(fernet_decrypted)
+                    
+                    # Layer 2: ChaCha20-Poly1305 decryption
+                    chacha_cipher = ChaCha20Poly1305(keys['chacha_key'])
+                    chacha_decrypted = chacha_cipher.decrypt(
+                        keys['chacha_nonce'], 
+                        fernet_decrypted, 
+                        b"layer2_aad"
+                    )
+                    
+                    # Layer 1: AES-GCM decryption
+                    aes_cipher = AESGCM(keys['aes_key'])
+                    final_decrypted = aes_cipher.decrypt(
+                        keys['aes_nonce'], 
+                        chacha_decrypted, 
+                        b"layer1_aad"
+                    )
+                    
+                    decrypted_parts.append(final_decrypted)
+                    
+                except Exception as part_error:
+                    logger.error(f"Error decrypting part {i+1}: {part_error}")
+                    raise ValueError(f"Failed to decrypt part {i+1}: {str(part_error)}")
+            
+            # Reconstruct original file by concatenating decrypted parts
+            original_content = b''.join(decrypted_parts)
+            
+            # Verify file integrity if hash is available
+            expected_hash = encryption_details.get('metadata', {}).get('file_hash')
+            if expected_hash:
+                actual_hash = hashlib.sha256(original_content).hexdigest()
+                if actual_hash != expected_hash:
+                    raise ValueError("File integrity check failed - hash mismatch")
+            
+            return original_content
+                
+        else:
+            # Original logic for backward compatibility
+            keys = manifest.get('encryption_keys', {})
+            if not keys:
+                raise ValueError("No encryption keys found in manifest")
+            
+            # Create decryption instance
+            decryption = EnhancedDecryption()
+            
+            # Read all encrypted parts
+            encrypted_parts = []
+            for part_path in encrypted_part_paths:
+                with open(part_path, 'rb') as f:
+                    encrypted_parts.append(f.read())
+            
+            # Decrypt each part
+            decrypted_parts = []
+            for i, encrypted_part in enumerate(encrypted_parts):
+                part_key = keys.get(f'part_{i+1}')
+                if not part_key:
+                    raise ValueError(f"Missing key for part {i+1}")
+                
+                # Derive key from password
+                salt = part_key.get('salt', b'default_salt')
+                key = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=salt,
+                    iterations=100000,
+                ).derive(part_key.get('password', 'default_password').encode())
+                
+                # Decrypt with AES-GCM
+                aesgcm = AESGCM(key)
+                nonce = part_key.get('nonce', b'default_nonce')
+                decrypted_part = aesgcm.decrypt(nonce, encrypted_part, None)
+                decrypted_parts.append(decrypted_part)
+            
+            # Reconstruct original file
+            original_content = b''.join(decrypted_parts)
+            
+            # Verify file integrity
+            expected_hash = manifest.get('file_hash')
+            if expected_hash:
+                actual_hash = hashlib.sha256(original_content).hexdigest()
+                if actual_hash != expected_hash:
+                    raise ValueError("File integrity check failed - hash mismatch")
+            
+            return original_content
+        
+    except Exception as e:
+        logger.error(f"Error decrypting split-and-encrypt file: {e}")
+        raise
